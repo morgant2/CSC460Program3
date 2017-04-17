@@ -1,4 +1,5 @@
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Created by Tommy on 4/16/2017.
  */
@@ -9,11 +10,11 @@ public class CSC460Program3 {
 
     static Semaphore writersWaiting = new Semaphore(0);
 
-    static int readCount = 0;
-    static int writeCount = 0;
+    static AtomicInteger readCount = new AtomicInteger(0);
+    static AtomicInteger writeCount = new AtomicInteger(0);
 
-    private static final int READERS = 5;
-    private static final int WRITERS = 3;
+    private static final int READERS = 50;
+    private static final int WRITERS = 50;
 
     public static void main(String[] args)
     {
@@ -21,16 +22,17 @@ public class CSC460Program3 {
         Thread[] writerArray = new Thread[WRITERS];
 
         for (int i = 0; i < READERS; i++) {
-            readerArray[i] = new Thread(new Read("Thread " + i));
+            readerArray[i] = new Thread(new Read());
+            readerArray[i].setName("Reader Thread " + i);
             readerArray[i].start();
         }
 
         for (int i = 0; i < WRITERS; i++) {
-            writerArray[i] = new Thread(new Write("Thread " + i));
+            writerArray[i] = new Thread(new Write());
+            writerArray[i].setName("Writer Thread " + i);
             writerArray[i].start();
         }
 
-        System.out.println("Done");
     }
 
     static class Read implements Runnable
@@ -38,15 +40,15 @@ public class CSC460Program3 {
         @Override
         public void run()
         {
-            do {
+//            do {
                 try{
                     rMutex.acquire();
-                    readCount++;
+                	readCount.getAndIncrement();
+                    
                     rMutex.release();
-
                     wMutex.acquire();
 
-                    if(writeCount > 0)
+                    if(writeCount.get() > 0)
                     {
                         wMutex.release();
                         writersWaiting.acquire();
@@ -57,12 +59,15 @@ public class CSC460Program3 {
                     }
 
                     //Perform Read
-
+                    System.out.println(Thread.currentThread().getName() + " is reading");
+                    Thread.sleep(1000);
+                    System.out.println(Thread.currentThread().getName() + " is finished reading");
+                    
                     rMutex.acquire();
                     wMutex.acquire();
-                    readCount--;
+                	readCount.getAndDecrement();
 
-                    if((readCount ==0) && (writeCount > 0))
+                    if((readCount.get() ==0) && (writeCount.get() > 0))
                     {
                         wantIn.release();
                         rMutex.release();
@@ -78,9 +83,7 @@ public class CSC460Program3 {
                 {
                     System.out.println(ex.getMessage());
                 }
-            } while (true);
-
-
+//            } while (true);
         }
     }
 
@@ -89,30 +92,31 @@ public class CSC460Program3 {
         @Override
         public void run()
         {
-            do {
-
-
+//            do {
                 try {
                     wMutex.acquire();
-                    writeCount++;
+                    writeCount.getAndIncrement();
                     wMutex.release();
 
-                    if (writeCount > 1 || readCount > 0) {
+                    if (writeCount.get() > 1 || readCount.get() > 0) {
                         wantIn.acquire();
                     }
 
                     //Perform Write
+                    System.out.println(Thread.currentThread().getName() + " is writing");
+                    Thread.sleep(2000);
+                    System.out.println(Thread.currentThread().getName() + " is finished writing");
 
                     wMutex.acquire();
-                    writeCount--;
+                    writeCount.getAndDecrement();
 
-                    if (writeCount > 0) {
+                    if (writeCount.get() > 0) {
                         wantIn.release();
                     } else {
                         rMutex.acquire();
-                        while (readCount > 0) {
+                        while (readCount.get() > 0) {
                             writersWaiting.release();
-                            readCount--;
+                        	readCount.getAndDecrement();
                         }
                     }
 
@@ -121,7 +125,7 @@ public class CSC460Program3 {
                 } catch (InterruptedException ex) {
                     System.out.println(ex.getMessage());
                 }
-            }while(true);
+//            }while(true);
         }
     }
 
